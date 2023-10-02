@@ -1,0 +1,142 @@
+List inventory and ping the target server:
+	1. ansible-inventory --list -y
+	2. ansible all -m ping -u <username>
+
+
+
+Setup password less authentication from ansible to target server:
+	1. ssh-keygen
+copy the pub key of master to worker in authorized key
+In master: cd .ssh
+cat id_rsa.pub (public key of master)
+
+Now take this public key and add to wroker /home/ubuntu/.ssh/authorized_keys
+cat >> authorized_keys
+paste the key
+
+Sample adhoc commands:
+# ansible all -a "df -h" -u <username>
+# ansible worker1 -a "df -h" -u <username>
+# ansible workers -a "uptime" -u <username>
+
+---------------------------------------------------------------------
+
+To run any playbooks use command: ansible-playbook <playbookname.yaml>
+
+Show sample playbooks:
+
+	1. Package module: Install package
+vi package-playbook.yaml
+---
+- name: Ansible playbook to install package
+  hosts: worker1
+  become: yes
+  tasks:
+    - name: Install apache httpd  (state=present is optional)
+      apt:
+        name: apache2
+        state: present
+
+	2. File module (acl)
+vi acl-playbook.yaml
+---
+- name: Ansible playbook to grant file read access to user
+  hosts: worker1
+  become: yes
+  tasks:
+    - name: Grant user joe read access to a file
+      acl:
+        path: /tmp/joe.txt
+        entity: joe
+        etype: user
+        permissions: r
+        state: present
+
+	3. File module (copy)
+	vi copy-palybook.yaml
+	---
+	- name: Ansible playbook to copy files
+	  hosts: worker1
+	  become: yes
+	  tasks:
+	    - name: Copy file with owner and permissions
+	      copy:
+	        src: /home/madan/ansible/file/acl-playbook.yaml
+	        dest: /tmp/ansible/
+	        owner: joe
+	        group: joe
+	        mode: '0644'
+	
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Ansible variables:
+command: ansible-playbook variable-useradd-playbook.yaml --extra-vars "username=joe"
+
+ vi variable-useradd-playbook.yaml
+
+---
+- name: Simple Variable to add user
+  hosts: worker1
+  become: yes
+  vars:
+    username: "{{ username }}"
+
+  tasks:
+  - name: Add the user {{ username }}
+    ansible.builtin.user:
+      name: "{{ username }}"
+      state: present
+
+
+
+++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Ansible roles
+# ansible-galaxy init prerequisites
+# ansible-galaxy init apache
+# ansible-playbook stack.yaml 
+
+
+madan@madan-virtual-machine:~/ansible/roles/git-apache$ cat stack.yaml
+---
+- hosts: all
+  become: yes
+  roles:
+        -  prerequisites
+        -  apache
+	
+madan@madan-virtual-machine:~/ansible/roles/git-apache$ cat apache/tasks/main.yml
+---
+- name: install Apache web server
+  apt:
+     name=apache2
+     state=present
+     update_cache=yes
+
+
+madan@madan-virtual-machine:~/ansible/roles/git-apache$ cat prerequisites/tasks/main.yml
+---
+
+- name: Install git
+  apt:
+     name: git
+     state: present
+     update_cache: yes
+
+command: ansible-playbook stack.yaml
+
++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++++
+
+Import multiple playbooks:
+
+madan@madan-virtual-machine:~/ansible/multi-playbook$ cat main.yaml
+---
+
+- import_playbook: acl-playbook.yaml
+- import_playbook: copy-playbook.yaml
+- import_playbook: package-playbook.yamlt
+
+
+Command: ansible-playbook main.yaml
+
